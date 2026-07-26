@@ -59,6 +59,8 @@ class TamusTable
                 TernaryFilter::make('is_lsm')
                     ->label('Status LSM'),
 
+                TrashedFilter::make(),
+
                 // Filter Rentang Tanggal Manual
                 Filter::make('tanggal')
                     ->form([

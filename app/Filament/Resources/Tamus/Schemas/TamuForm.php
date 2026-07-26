@@ -10,6 +10,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\FileUpload;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Saade\FilamentAutograph\Forms\Components\SignaturePad; // Import plugin Tanda Tangan
 
 class TamuForm
 {
@@ -18,64 +19,89 @@ class TamuForm
         return $schema
             ->components([
                 TextInput::make('nama')
+                    ->placeholder('Contoh: Budi Santoso')
+                    ->helperText('Masukkan nama lengkap tamu.')
                     ->required(),
 
                 TextInput::make('asal_instansi')
-                    ->default(null),
+                    ->placeholder('Contoh: PT. Maju Jaya / Universitas Brawijaya')
+                    ->helperText('Kosongkan jika ini adalah kunjungan pribadi.'),
 
                 TextInput::make('alamat')
+                    ->placeholder('Contoh: Jl. Merdeka No.10, Kota X')
                     ->required(),
 
                 TextInput::make('no_hp')
+                    ->label('No. HP / WhatsApp')
+                    ->placeholder('Contoh: 08123456789')
+                    ->helperText('Pastikan nomor aktif dan bisa dihubungi via WA.')
                     ->required(),
 
-                // 1. Kategori Keperluan kita ubah jadi Select
                 Select::make('kategori_keperluan')
                     ->options([
-                        'Bertemu Guru/Pegawai' => 'Bertemu Guru/Pegawai',
-                        'Bertemu Siswa' => 'Bertemu Siswa',
-                        'Dinas' => 'Dinas Terkait',
-                        'Penawaran Barang/Jasa' => 'Penawaran Barang/Jasa',
+                        'Dinas / Kedinasan' => 'Dinas / Kedinasan',
+                        'Orang Tua / Wali Murid' => 'Orang Tua / Wali Murid',
+                        'Menemui Guru / Pegawai / Kepsek' => 'Menemui Guru / Pegawai / Kepsek',
+                        'Administrasi / Tata Usaha' => 'Administrasi / Tata Usaha',
+                        'Studi Banding / Kerja Sama' => 'Studi Banding / Kerja Sama',
+                        'Vendor / Sosialisasi' => 'Vendor / Sosialisasi',
+                        'Pengantaran Barang' => 'Pengantaran Barang',
+                        'Servis / Maintenance' => 'Servis / Maintenance',
+                        'Alumni' => 'Alumni', // Dipisah
+                        'Kegiatan Sekolah' => 'Kegiatan Sekolah', // Dipisah
                         'Lainnya' => 'Lainnya',
                     ])
-                    ->live() // Penting: agar form bisa merespon pilihan secara realtime
+                    ->helperText('Pilih kategori yang paling sesuai dengan tujuan kedatangan.')
+                    ->live()
                     ->required(),
 
-                // 2. Dropdown Pegawai HANYA muncul jika kategori yang dipilih adalah 'Bertemu Guru/Pegawai'
                 Select::make('pegawai_id')
                     ->relationship('pegawai', 'nama')
-                    ->label('Pilih Guru/Pegawai')
-                    ->searchable()
+                    ->label('Pilih Nama Guru / Pegawai')
+                    // Memunculkan Nama beserta Jabatannya di dropdown
+                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->nama} - ({$record->jabatan})")
+                    ->searchable(['nama', 'jabatan'])
                     ->preload()
-                    ->visible(fn(Get $get) => $get('kategori_keperluan') === 'Bertemu Guru/Pegawai')
-                    ->required(fn(Get $get) => $get('kategori_keperluan') === 'Bertemu Guru/Pegawai'),
+                    ->helperText('Ketik nama atau jabatan untuk mencari.')
+                    ->visible(fn(Get $get) => $get('kategori_keperluan') === 'Menemui Guru / Pegawai / Kepsek')
+                    ->required(fn(Get $get) => $get('kategori_keperluan') === 'Menemui Guru / Pegawai / Kepsek'),
 
-                // 3. Kolom Keperluan menjadi tempat menulis detail (termasuk nama/kelas siswa)
                 Textarea::make('keperluan')
                     ->label('Detail Keperluan / Keterangan')
-                    ->placeholder(fn(Get $get) => $get('kategori_keperluan') === 'Bertemu Siswa'
-                        ? 'Contoh: Menjemput anak atas nama Budi kelas 10A (sakit)'
+                    ->placeholder(fn(Get $get) => $get('kategori_keperluan') === 'Orang Tua / Wali Murid'
+                        ? 'Contoh: Menjemput anak Budi kelas 10A (sakit)'
                         : 'Tuliskan detail keperluan di sini...')
+                    ->helperText('Berikan keterangan singkat dan jelas mengenai tujuan kedatangan.')
                     ->required()
                     ->columnSpanFull(),
 
-                // 4. Ubah Selfie menjadi FileUpload khusus gambar
                 FileUpload::make('foto_selfie')
                     ->label('Foto Selfie Tamu')
                     ->image()
                     ->directory('foto-tamu')
+                    ->helperText('Pastikan wajah terlihat jelas dan tidak memakai masker/kacamata hitam.')
                     ->required(),
 
-                Textarea::make('tanda_tangan')
+                SignaturePad::make('tanda_tangan')
+                    ->label('Tanda Tangan Digital')
+                    ->dotSize(2.0)
+                    ->lineMinWidth(1.0)
+                    ->lineMaxWidth(2.5)
+                    ->penColor('rgb(0, 0, 0)')
+                    ->backgroundColor('#ffffff') // Gunakan Hex murni
+                    // Tambahkan tanda seru (!) sebelum bg-white untuk memaksa warna putih sejak awal render
+                    ->extraAttributes(['class' => '!bg-white border-2 border-gray-300 rounded-lg'])
+                    ->helperText('Goreskan tanda tangan di dalam kotak di atas.')
                     ->required()
                     ->columnSpanFull(),
 
                 Toggle::make('is_lsm')
                     ->label('Tandai sebagai LSM')
-                    ->required(),
+                    ->helperText('Centang jika tamu berasal dari Lembaga Swadaya Masyarakat.'),
 
                 DateTimePicker::make('waktu_keluar')
-                    ->label('Waktu Pulang'),
+                    ->label('Waktu Pulang')
+                    ->helperText('Bisa diisi manual atau klik tombol "Tamu Pulang" di tabel depan.'),
             ]);
     }
 }
