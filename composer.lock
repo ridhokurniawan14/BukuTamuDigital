@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "4f5ab0dadc5263424b8882e183b30a20",
+    "content-hash": "bdaee73250b2f452bfc312bd8179fae7",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -3590,97 +3590,6 @@
                 }
             ],
             "time": "2026-01-02T08:56:05+00:00"
-        },
-        {
-            "name": "mradder/filament-logger",
-            "version": "v1.4.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/MrAdder/filament-logger.git",
-                "reference": "ba1cd50495ddefc8de5e35f7a534872e40f9e460"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/MrAdder/filament-logger/zipball/ba1cd50495ddefc8de5e35f7a534872e40f9e460",
-                "reference": "ba1cd50495ddefc8de5e35f7a534872e40f9e460",
-                "shasum": ""
-            },
-            "require": {
-                "filament/filament": "^3.0 || ^4.3.1 || ^5.0",
-                "illuminate/contracts": "^11.0 | ^12.0 | ^13.0",
-                "php": "^8.2",
-                "spatie/laravel-activitylog": "^4.5",
-                "spatie/laravel-package-tools": "^1.13.5"
-            },
-            "require-dev": {
-                "larastan/larastan": "^3.9",
-                "nunomaduro/collision": "^8.0 | ^9.0 | ^10.0",
-                "orchestra/testbench": "^9.0 | ^10.0 | ^11.0",
-                "pestphp/pest": "^3.7 | ^4.0",
-                "pestphp/pest-plugin-laravel": "^3.1 | ^4.0",
-                "phpstan/extension-installer": "^1.1",
-                "phpstan/phpstan-deprecation-rules": "^2.0",
-                "phpstan/phpstan-phpunit": "^2.0",
-                "phpunit/phpunit": "^11.5 | ^12.5.22",
-                "spatie/laravel-ray": "^1.26"
-            },
-            "type": "library",
-            "extra": {
-                "laravel": {
-                    "aliases": {
-                        "FilamentLogger": "MrAdder\\FilamentLogger\\Facades\\FilamentLogger"
-                    },
-                    "providers": [
-                        "MrAdder\\FilamentLogger\\FilamentLoggerServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "MrAdder\\FilamentLogger\\": "src",
-                    "MrAdder\\FilamentLogger\\Database\\Factories\\": "database/factories"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Ziyaan Hassan",
-                    "email": "ziyaan2010@gmail.com",
-                    "role": "Developer"
-                },
-                {
-                    "name": "Daniel Green",
-                    "email": "dgreen03@gmail.com",
-                    "role": "Developer"
-                }
-            ],
-            "description": "Audit logging, activity tracking, exports, alerts, and dashboards for Filament admin panels.",
-            "homepage": "https://mradder.github.io/filament-logger/",
-            "keywords": [
-                "activity-log",
-                "activity-tracking",
-                "admin-panel",
-                "alerts",
-                "audit-log",
-                "compliance",
-                "exports",
-                "filament",
-                "filament-logger",
-                "filamentphp",
-                "laravel",
-                "laravel-activitylog",
-                "security",
-                "spatie-activitylog"
-            ],
-            "support": {
-                "docs": "https://mradder.github.io/filament-logger/",
-                "issues": "https://github.com/MrAdder/filament-logger/issues",
-                "source": "https://github.com/MrAdder/filament-logger"
-            },
-            "time": "2026-05-26T04:59:40+00:00"
         },
         {
             "name": "nesbot/carbon",
