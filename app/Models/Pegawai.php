@@ -21,6 +21,10 @@ class Pegawai extends Model
 
     public function getActivitylogOptions(): LogOptions
     {
-        return LogOptions::defaults()->logAll();
+        return LogOptions::defaults()
+            // Sebutkan kolomnya secara spesifik agar Spatie tidak bingung
+            ->logOnly(['nama', 'jabatan', 'no_hp', 'is_active'])
+            // Opsional tapi sangat disarankan: Cuma merekam data yang benar-benar berubah
+            ->logOnlyDirty();
     }
 }

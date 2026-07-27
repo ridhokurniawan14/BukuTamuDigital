@@ -12,12 +12,15 @@ use Filament\Actions\ImportAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Table;
+use Filament\Forms\Get;
 
 class PegawaisTable
 {
     public static function configure(Table $table): Table
     {
         return $table
+            ->poll('5s')
+            ->defaultSort('created_at', 'desc')
             ->columns([
                 TextColumn::make('nama')
                     ->label('Nama Pegawai')
@@ -27,7 +30,31 @@ class PegawaisTable
                     ->searchable(),
                 TextColumn::make('no_hp')
                     ->label('No. HP / WA')
-                    ->searchable(),
+                    ->searchable()
+                    // Menambahkan icon chat berwarna hijau
+                    ->icon('heroicon-m-chat-bubble-left-ellipsis')
+                    ->iconColor('success')
+                    // Membuatnya menjadi link yang bisa diklik
+                    ->url(function ($record) {
+                        $nomor = $record->no_hp;
+
+                        // Hapus karakter selain angka (opsional untuk jaga-jaga)
+                        $nomor = preg_replace('/[^0-9]/', '', $nomor);
+
+                        // Pengecekan format nomor agar selalu berawalan 62
+                        if (str_starts_with($nomor, '0')) {
+                            // Jika berawalan 0, ubah jadi 62
+                            $nomor = '62' . substr($nomor, 1);
+                        } elseif (str_starts_with($nomor, '8')) {
+                            // Jika langsung 8 (seperti datamu: 8968215449), tambahkan 62 di depannya
+                            $nomor = '62' . $nomor;
+                        }
+
+                        // Kembalikan URL WhatsApp
+                        return "https://wa.me/{$nomor}";
+                    })
+                    // Buka di tab baru agar user tidak keluar dari halaman dashboard
+                    ->openUrlInNewTab(),
 
                 ToggleColumn::make('is_active')
                     ->label('Status Aktif')

@@ -49,6 +49,7 @@ class PegawaiForm
                 TextInput::make('no_hp')
                     ->label('No. HP / WhatsApp')
                     ->placeholder('Contoh: 08123456789')
+                    ->numeric()
                     ->helperText('Nomor ini akan digunakan untuk notifikasi WhatsApp.')
                     ->required(),
 
