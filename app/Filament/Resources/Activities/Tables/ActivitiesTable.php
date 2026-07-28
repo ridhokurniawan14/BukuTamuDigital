@@ -62,11 +62,21 @@ class ActivitiesTable
                     ->modalDescription('Tindakan ini akan menghapus semua log aktivitas dan hanya menyisakan 10 log terbaru. Apakah Anda yakin?')
                     ->action(function () {
                         $latestIds = Activity::latest('id')->take(10)->pluck('id');
+
+                        // Hitung dulu sebelum dihapus, buat dicatat di log
+                        $deletedCount = Activity::whereNotIn('id', $latestIds)->count();
+
                         Activity::whereNotIn('id', $latestIds)->delete();
+
+                        // Catat manual siapa yang membersihkan log
+                        activity('system')
+                            ->causedBy(auth()->user())
+                            ->withProperties(['deleted_count' => $deletedCount])
+                            ->log("Membersihkan log aktivitas, menghapus {$deletedCount} log lama");
 
                         Notification::make()
                             ->title('Log Berhasil Dibersihkan!')
-                            ->body('Semua log lama telah dihapus, menyisakan 10 aktivitas terbaru.')
+                            ->body("Semua log lama telah dihapus ({$deletedCount} log), menyisakan 10 aktivitas terbaru.")
                             ->success()
                             ->send();
                     })
@@ -78,25 +88,33 @@ class ActivitiesTable
                     ->icon('heroicon-m-eye')
                     ->color('info')
                     ->modalHeading('Detail Perubahan Data')
+                    // Sembunyikan tombol Detail kalau log ini gak nempel ke model manapun
+                    // (misal: log "Bersihkan Log" yang gak punya subject_type/subject_id)
+                    ->visible(fn(Activity $record) => filled($record->subject_type))
                     ->mutateRecordDataUsing(function (array $data, Activity $record): array {
-                        $data['new_data'] = $record->properties->get('attributes', []);
-                        $data['old_data'] = $record->properties->get('old', []);
+                        $changes = $record->attribute_changes ?? [];
+
+                        $data['new_data'] = $changes['attributes'] ?? [];
+                        $data['old_data'] = $changes['old'] ?? [];
+
                         return $data;
                     })
-                    ->schema([   // ganti dari ->form([...]) jadi ->schema([...])
+                    ->schema([
                         Section::make('Data Baru (Setelah Disimpan)')
                             ->description('Ini adalah data yang saat ini masuk ke database.')
                             ->schema([
-                                KeyValue::make('new_data')->label(''),
+                                KeyValue::make('new_data')
+                                    ->label('')
                             ])
-                            ->visible(fn(Activity $record) => filled($record->properties->get('attributes'))),
+                            ->visible(fn(Activity $record) => filled($record->attribute_changes['attributes'] ?? null)),
 
                         Section::make('Data Lama (Sebelum Diubah)')
                             ->description('Ini adalah wujud asli data sebelum diedit oleh user.')
                             ->schema([
-                                KeyValue::make('old_data')->label(''),
+                                KeyValue::make('old_data')
+                                    ->label('')
                             ])
-                            ->visible(fn(Activity $record) => filled($record->properties->get('old'))),
+                            ->visible(fn(Activity $record) => filled($record->attribute_changes['old'] ?? null)),
                     ])
             ])
             ->bulkActions([

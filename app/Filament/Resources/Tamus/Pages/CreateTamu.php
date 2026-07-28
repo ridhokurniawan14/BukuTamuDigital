@@ -8,4 +8,10 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateTamu extends CreateRecord
 {
     protected static string $resource = TamuResource::class;
+
+    // Tambahkan fungsi ini agar setelah klik Create, langsung kembali ke tabel (Index)
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

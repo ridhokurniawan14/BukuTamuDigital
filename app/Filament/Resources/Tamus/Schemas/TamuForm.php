@@ -8,9 +8,11 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\FileUpload;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
-use Saade\FilamentAutograph\Forms\Components\SignaturePad; // Import plugin Tanda Tangan
+use Saade\FilamentAutograph\Forms\Components\SignaturePad;
+use Illuminate\Database\Eloquent\Builder; // WAJIB IMPORT INI UNTUK FILTER PEGAWAI
 
 class TamuForm
 {
@@ -33,6 +35,7 @@ class TamuForm
 
                 TextInput::make('no_hp')
                     ->label('No. HP / WhatsApp')
+                    ->numeric()
                     ->placeholder('Contoh: 08123456789')
                     ->helperText('Pastikan nomor aktif dan bisa dihubungi via WA.')
                     ->required(),
@@ -47,8 +50,8 @@ class TamuForm
                         'Vendor / Sosialisasi' => 'Vendor / Sosialisasi',
                         'Pengantaran Barang' => 'Pengantaran Barang',
                         'Servis / Maintenance' => 'Servis / Maintenance',
-                        'Alumni' => 'Alumni', // Dipisah
-                        'Kegiatan Sekolah' => 'Kegiatan Sekolah', // Dipisah
+                        'Alumni' => 'Alumni',
+                        'Kegiatan Sekolah' => 'Kegiatan Sekolah',
                         'Lainnya' => 'Lainnya',
                     ])
                     ->helperText('Pilih kategori yang paling sesuai dengan tujuan kedatangan.')
@@ -56,9 +59,13 @@ class TamuForm
                     ->required(),
 
                 Select::make('pegawai_id')
-                    ->relationship('pegawai', 'nama')
+                    // 1. REVISI FILTER PEGAWAI AKTIF SAJA
+                    ->relationship(
+                        name: 'pegawai',
+                        titleAttribute: 'nama',
+                        modifyQueryUsing: fn(Builder $query) => $query->where('is_active', true)
+                    )
                     ->label('Pilih Nama Guru / Pegawai')
-                    // Memunculkan Nama beserta Jabatannya di dropdown
                     ->getOptionLabelFromRecordUsing(fn($record) => "{$record->nama} - ({$record->jabatan})")
                     ->searchable(['nama', 'jabatan'])
                     ->preload()
@@ -75,24 +82,27 @@ class TamuForm
                     ->required()
                     ->columnSpanFull(),
 
-                FileUpload::make('foto_selfie')
-                    ->label('Foto Selfie Tamu')
-                    ->image()
-                    ->directory('foto-tamu')
-                    ->helperText('Pastikan wajah terlihat jelas dan tidak memakai masker/kacamata hitam.')
-                    ->required(),
+                Grid::make(2)
+                    ->schema([
+                        FileUpload::make('foto_selfie')
+                            ->label('Foto Selfie Tamu')
+                            ->image()
+                            ->directory('foto-tamu')
+                            ->imageResizeTargetWidth(1024)
+                            ->imageResizeTargetHeight(1024)
+                            ->helperText('Pastikan wajah terlihat jelas dan tidak memakai masker/kacamata hitam.')
+                            ->required(),
 
-                SignaturePad::make('tanda_tangan')
-                    ->label('Tanda Tangan Digital')
-                    ->dotSize(2.0)
-                    ->lineMinWidth(1.0)
-                    ->lineMaxWidth(2.5)
-                    ->penColor('rgb(0, 0, 0)')
-                    ->backgroundColor('#ffffff') // Gunakan Hex murni
-                    // Tambahkan tanda seru (!) sebelum bg-white untuk memaksa warna putih sejak awal render
-                    ->extraAttributes(['class' => '!bg-white border-2 border-gray-300 rounded-lg'])
-                    ->helperText('Goreskan tanda tangan di dalam kotak di atas.')
-                    ->required()
+                        SignaturePad::make('tanda_tangan')
+                            ->label('Tanda Tangan Digital')
+                            ->dotSize(2.0)
+                            ->lineMinWidth(1.0)
+                            ->lineMaxWidth(2.5)
+                            ->penColor('#000000')
+                            ->backgroundColor('gray')
+                            ->helperText('Goreskan tanda tangan di dalam kotak di atas.')
+                            ->required(),
+                    ])
                     ->columnSpanFull(),
 
                 Toggle::make('is_lsm')
