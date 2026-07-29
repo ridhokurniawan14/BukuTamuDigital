@@ -10,6 +10,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\FileUpload;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Saade\FilamentAutograph\Forms\Components\SignaturePad;
 use Illuminate\Database\Eloquent\Builder; // WAJIB IMPORT INI UNTUK FILTER PEGAWAI
@@ -56,6 +57,11 @@ class TamuForm
                     ])
                     ->helperText('Pilih kategori yang paling sesuai dengan tujuan kedatangan.')
                     ->live()
+                    ->afterStateUpdated(function (Set $set, $state) {
+                        if ($state !== 'Menemui Guru / Pegawai / Kepsek') {
+                            $set('pegawai_id', null);
+                        }
+                    })
                     ->required(),
 
                 Select::make('pegawai_id')

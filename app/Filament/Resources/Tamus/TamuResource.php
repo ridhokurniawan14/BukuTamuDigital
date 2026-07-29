@@ -20,7 +20,12 @@ class TamuResource extends Resource
 {
     protected static ?string $model = Tamu::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    // TAMBAHKAN 3 BARIS INI:
+    protected static ?string $modelLabel = 'Tamu';
+    protected static ?string $pluralModelLabel = 'Tamu';
+    protected static ?string $navigationLabel = 'Tamu';
+    protected static ?int $navigationSort = 2;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::User;
 
     protected static ?string $recordTitleAttribute = 'nama';
 

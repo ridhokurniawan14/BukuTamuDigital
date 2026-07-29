@@ -21,9 +21,16 @@ class UserResource extends Resource
     protected static ?string $modelLabel = 'Pengguna';
     protected static ?string $pluralModelLabel = 'Pengguna';
     protected static ?string $navigationLabel = 'Pengguna';
+
+    protected static ?int $navigationSort = 4;
     protected static string|BackedEnum|null $navigationIcon = Heroicon::UserCircle;
 
     protected static ?string $recordTitleAttribute = 'nama';
+
+    public static function getNavigationGroup(): ?string
+    {
+        return 'Data Master';
+    }
 
     public static function form(Schema $schema): Schema
     {

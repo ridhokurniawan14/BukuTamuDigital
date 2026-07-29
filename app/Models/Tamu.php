@@ -20,6 +20,16 @@ class Tamu extends Model
         return $this->belongsTo(Pegawai::class);
     }
 
+    protected static function booted()
+    {
+        static::saving(function ($tamu) {
+            // Jika kategori BUKAN 'Menemui Pegawai', maka paksa pegawai_id jadi kosong (null)
+            if ($tamu->kategori_keperluan !== 'Menemui Guru / Pegawai / Kepsek') {
+                $tamu->pegawai_id = null;
+            }
+        });
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
