@@ -18,8 +18,9 @@ use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
-use Illuminate\Support\Facades\Schema; // Tambahan untuk cek tabel
-use Illuminate\Support\Facades\Storage; // Tambahan untuk URL file
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\HtmlString; // <-- JURUS BARU: Untuk render HTML Custom
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -37,7 +38,7 @@ class AdminPanelProvider extends PanelProvider
         }
 
         $namaAplikasi = $pengaturan->nama_aplikasi ?? 'Buku Tamu Digital';
-        $warnaUtama = $pengaturan->warna_utama ?? '#f59e0b'; // Default Amber
+        $warnaUtama = $pengaturan->warna_utama ?? '#f59e0b';
 
         $logo = ($pengaturan && $pengaturan->logo_instansi)
             ? asset(Storage::url($pengaturan->logo_instansi))
@@ -51,6 +52,16 @@ class AdminPanelProvider extends PanelProvider
             ? asset(Storage::url($pengaturan->gambar_background))
             : null;
 
+        // ==================================================
+        // JURUS SAKTI: Gabungkan Logo & Teks pakai HTML Flexbox
+        // ==================================================
+        $brandHtml = new HtmlString('
+            <div style="display: flex; align-items: center; gap: 12px;">
+                ' . ($logo ? '<img src="' . $logo . '" alt="Logo" style="height: 3rem; border-radius: 0.25rem;">' : '') . '
+                <span style="font-size: 1.25rem; font-weight: bold; line-height: 1.2;">' . $namaAplikasi . '</span>
+            </div>
+        ');
+
         return $panel
             ->default()
             ->id('admin')
@@ -61,18 +72,23 @@ class AdminPanelProvider extends PanelProvider
             // ==================================================
             // 2. TERAPKAN DATA BRANDING KE PANEL ADMIN
             // ==================================================
-            ->brandName($namaAplikasi)
-            ->brandLogo($logo)
-            ->brandLogoHeight('3rem') // Ukuran proporsional logo
+            ->brandName($namaAplikasi) // Fallback nama
+            ->brandLogo($brandHtml) // Pakai gabungan logo & teks
+            ->brandLogoHeight('3rem') // Sesuaikan dengan tinggi logo di HTML
             ->favicon($favicon)
             ->colors([
-                // Mengubah warna bawaan menjadi warna pilihan klien
                 'primary' => Color::hex($warnaUtama),
             ])
-            // Menyuntikkan CSS khusus Halaman Login untuk menampilkan Background
+            // REVISI CSS: Tambahkan overlay hitam transparan (rgba) di atas gambar background
             ->renderHook(
                 \Filament\View\PanelsRenderHook::HEAD_END,
-                fn(): string => $background ? '<style>.fi-simple-layout { background-image: url("' . $background . '") !important; background-size: cover !important; background-position: center !important; }</style>' : ''
+                fn(): string => $background ? '<style>
+                    .fi-simple-layout { 
+                        background-image: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), url("' . $background . '") !important; 
+                        background-size: cover !important; 
+                        background-position: center !important; 
+                    }
+                </style>' : ''
             )
             // ==================================================
 

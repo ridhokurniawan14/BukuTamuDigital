@@ -103,6 +103,35 @@ class PengaturanForm
                                         ->default(true)
                                         ->required(),
                                 ]),
+                                // Pengaturan Jam Operasional (Yang sudah ada)
+                                Grid::make(2)->schema([
+                                    \Filament\Forms\Components\TimePicker::make('jam_buka')
+                                        ->label('Jam Buka Layanan Buku Tamu')
+                                        ->default('06:00:00')
+                                        ->required(),
+
+                                    \Filament\Forms\Components\TimePicker::make('jam_tutup')
+                                        ->label('Jam Tutup Layanan Buku Tamu')
+                                        ->default('18:00:00')
+                                        ->required(),
+                                ]),
+
+                                // JURUS BARU: Pemilihan Hari Kerja menggunakan Checkbox
+                                \Filament\Forms\Components\CheckboxList::make('hari_kerja')
+                                    ->label('Hari Kerja Operasional')
+                                    ->options([
+                                        'Senin' => 'Senin',
+                                        'Selasa' => 'Selasa',
+                                        'Rabu' => 'Rabu',
+                                        'Kamis' => 'Kamis',
+                                        'Jumat' => 'Jumat',
+                                        'Sabtu' => 'Sabtu',
+                                        'Minggu' => 'Minggu',
+                                    ])
+                                    ->default(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'])
+                                    ->columns(4) // Biar rapi berjajar 4 kolom ke samping
+                                    ->columnSpanFull()
+                                    ->required(),
                             ]),
                     ])
                     ->columnSpanFull() // Memastikan tab membentang penuh ke samping

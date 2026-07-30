@@ -11,4 +11,8 @@ class Pengaturan extends Model
 
     // UBAH BARIS INI BRO: Kosongkan isi kurung sikunya
     protected $guarded = [];
+
+    protected $casts = [
+        'hari_kerja' => 'array',
+    ];
 }
