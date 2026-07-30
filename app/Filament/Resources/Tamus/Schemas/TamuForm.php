@@ -104,8 +104,16 @@ class TamuForm
                             ->dotSize(2.0)
                             ->lineMinWidth(1.0)
                             ->lineMaxWidth(2.5)
+                            // 1. Warna untuk Light Mode (Terang)
                             ->penColor('#000000')
-                            ->backgroundColor('gray')
+                            ->backgroundColor('#ffffff')
+                            // 2. Warna untuk Dark Mode (Gelap) - KITA PAKSA SAMA!
+                            ->penColorOnDark('#000000')
+                            ->backgroundColorOnDark('#ffffff')
+                            // 3. Border luar biar rapi
+                            ->extraAttributes([
+                                'class' => 'border-2 border-gray-300 dark:border-gray-600 rounded-lg'
+                            ])
                             ->helperText('Goreskan tanda tangan di dalam kotak di atas.')
                             ->required(),
                     ])

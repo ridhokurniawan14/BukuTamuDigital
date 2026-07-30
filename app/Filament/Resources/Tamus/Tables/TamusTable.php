@@ -88,9 +88,9 @@ class TamusTable
 
                 TextColumn::make('waktu_keluar')
                     ->label('Jam Keluar')
-                    ->dateTime('H:i')
                     ->placeholder('Belum Pulang')
                     ->badge()
+                    ->formatStateUsing(fn($state) => $state ? \Carbon\Carbon::parse($state)->format('H:i') . ' WIB' : null)
                     ->color(fn($state) => $state === null ? 'danger' : 'success'),
             ])
             ->defaultSort('created_at', 'desc')
@@ -127,7 +127,7 @@ class TamusTable
                         Select::make('format')
                             ->label('Format File')
                             ->options([
-                                'excel' => 'Excel (CSV)',
+                                'excel' => 'Excel (.xls)',
                                 'pdf' => 'PDF',
                             ])
                             ->default('excel')
@@ -142,7 +142,6 @@ class TamusTable
                             ->required(),
                     ])
                     ->action(function (array $data) {
-                        // Tarik data dari database
                         $tamus = Tamu::with('pegawai')
                             ->whereBetween('created_at', [
                                 $data['dari_tanggal'] . ' 00:00:00',
@@ -151,51 +150,136 @@ class TamusTable
                             ->orderBy('created_at', 'asc')
                             ->get();
 
-                        // Panggil brankas disk penyimpanan (untuk akses gambar Base64 & URL)
                         $disk = \Illuminate\Support\Facades\Storage::disk(config('filament.default_filesystem_disk', 'public'));
+                        $periodeDari = \Carbon\Carbon::parse($data['dari_tanggal'])->translatedFormat('d M Y');
+                        $periodeSampai = \Carbon\Carbon::parse($data['sampai_tanggal'])->translatedFormat('d M Y');
 
                         // ==========================================
-                        // 1. JIKA MEMILIH EXCEL (CSV)
+                        // 1. JIKA MEMILIH EXCEL (.xlsx ASLI DENGAN GAMBAR)
                         // ==========================================
                         if ($data['format'] === 'excel') {
-                            $filename = 'Laporan_Buku_Tamu_' . date('Ymd') . '.csv';
-                            return response()->streamDownload(function () use ($tamus, $disk) {
-                                echo "\xEF\xBB\xBF"; // BOM agar Excel tidak acak-acakan
-                                $handle = fopen('php://output', 'w');
+                            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+                            $sheet = $spreadsheet->getActiveSheet();
 
-                                // Header Tabel (Menambahkan Link Foto & Link TTD)
-                                fputcsv($handle, ['No', 'Waktu Datang', 'Nama Tamu', 'Asal Instansi', 'Kategori', 'Keperluan', 'Menemui', 'LSM', 'Jam Keluar', 'Link Foto Selfie', 'Link Tanda Tangan'], ';');
+                            // Set Judul
+                            $sheet->mergeCells('A1:I1');
+                            $sheet->setCellValue('A1', 'Laporan Buku Tamu Digital');
+                            $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(18);
+                            $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
 
-                                $no = 1;
-                                foreach ($tamus as $tamu) {
-                                    // Generate URL Penuh untuk Excel
-                                    $fotoUrl = ($tamu->foto_selfie && $disk->exists($tamu->foto_selfie)) ? url($disk->url($tamu->foto_selfie)) : '-';
-                                    $ttdUrl = ($tamu->tanda_tangan && $disk->exists($tamu->tanda_tangan)) ? url($disk->url($tamu->tanda_tangan)) : '-';
+                            $sheet->mergeCells('A2:I2');
+                            $sheet->setCellValue('A2', 'Periode: ' . $periodeDari . ' s/d ' . $periodeSampai);
+                            $sheet->getStyle('A2')->getFont()->setSize(12);
+                            $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
 
-                                    fputcsv($handle, [
-                                        $no++,
-                                        $tamu->created_at->format('d M Y, H:i'),
-                                        $tamu->nama,
-                                        $tamu->asal_instansi ?? '-',
-                                        $tamu->kategori_keperluan,
-                                        $tamu->keperluan,
-                                        $tamu->pegawai?->nama ?? '-',
-                                        $tamu->is_lsm ? 'Ya' : 'Tidak',
-                                        $tamu->waktu_keluar ? \Carbon\Carbon::parse($tamu->waktu_keluar)->format('H:i') : 'Belum Pulang',
-                                        $fotoUrl, // Masuk ke Excel sebagai Teks Link
-                                        $ttdUrl   // Masuk ke Excel sebagai Teks Link
-                                    ], ';');
+                            // Header Tabel
+                            $headers = ['No', 'Waktu Datang', 'Nama Tamu', 'Asal Instansi', 'Keperluan', 'Menemui', 'Jam Keluar', 'Foto Selfie', 'Tanda Tangan'];
+                            $sheet->fromArray($headers, null, 'A4');
+                            $sheet->getStyle('A4:I4')->getFont()->setBold(true);
+                            $sheet->getStyle('A4:I4')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+                            $sheet->getStyle('A4:I4')->getAlignment()->setHorizontal('center');
+
+                            // Lebar Kolom
+                            $sheet->getColumnDimension('B')->setWidth(18);
+                            $sheet->getColumnDimension('C')->setWidth(20);
+                            $sheet->getColumnDimension('D')->setWidth(20);
+                            $sheet->getColumnDimension('E')->setWidth(30);
+                            $sheet->getColumnDimension('F')->setWidth(25);
+                            $sheet->getColumnDimension('G')->setWidth(15);
+                            $sheet->getColumnDimension('H')->setWidth(15);
+                            $sheet->getColumnDimension('I')->setWidth(15);
+
+                            $rowNum = 5;
+                            $no = 1;
+
+                            foreach ($tamus as $tamu) {
+                                // Lebarkan tinggi baris agar gambar muat
+                                $sheet->getRowDimension($rowNum)->setRowHeight(80);
+
+                                $sheet->setCellValue('A' . $rowNum, $no++);
+                                $sheet->setCellValue('B' . $rowNum, $tamu->created_at->format('d M Y') . "\n" . $tamu->created_at->format('H:i') . ' WIB');
+                                $sheet->getStyle('B' . $rowNum)->getAlignment()->setWrapText(true); // Agar jam bisa turun ke bawah
+
+                                $sheet->setCellValue('C' . $rowNum, $tamu->nama);
+                                $sheet->setCellValue('D' . $rowNum, $tamu->asal_instansi ?? '-');
+                                $sheet->setCellValue('E' . $rowNum, $tamu->keperluan);
+                                $sheet->setCellValue('F' . $rowNum, $tamu->pegawai?->nama ?? '-');
+                                $sheet->setCellValue('G' . $rowNum, $tamu->waktu_keluar ? \Carbon\Carbon::parse($tamu->waktu_keluar)->format('H:i') . ' WIB' : '-');
+
+                                // MASUKKAN FOTO SELFIE FISIK KE DALAM EXCEL
+                                if ($tamu->foto_selfie && $disk->exists($tamu->foto_selfie)) {
+                                    $drawing = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing();
+                                    $drawing->setName('Foto');
+                                    $drawing->setPath($disk->path($tamu->foto_selfie));
+                                    $drawing->setCoordinates('H' . $rowNum);
+                                    $drawing->setHeight(90);
+                                    $drawing->setOffsetX(10);
+                                    $drawing->setOffsetY(10);
+                                    $drawing->setWorksheet($sheet);
                                 }
-                                fclose($handle);
-                            }, $filename, ['Content-Type' => 'text/csv']);
+
+                                // MASUKKAN TANDA TANGAN KE DALAM EXCEL
+                                if ($tamu->tanda_tangan) {
+                                    if (str_starts_with($tamu->tanda_tangan, 'data:image')) {
+                                        // Ubah Base64 menjadi gambar memori khusus untuk Excel
+                                        $base64data = substr($tamu->tanda_tangan, strpos($tamu->tanda_tangan, ',') + 1);
+                                        $image = imagecreatefromstring(base64_decode($base64data));
+                                        if ($image !== false) {
+                                            $drawing = new \PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing();
+                                            $drawing->setName('TTD');
+                                            $drawing->setImageResource($image);
+                                            $drawing->setRenderingFunction(\PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing::RENDERING_PNG);
+                                            $drawing->setMimeType(\PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing::MIMETYPE_PNG);
+                                            $drawing->setCoordinates('I' . $rowNum);
+                                            $drawing->setHeight(80);
+                                            $drawing->setOffsetX(10);
+                                            $drawing->setOffsetY(10);
+                                            $drawing->setWorksheet($sheet);
+                                        }
+                                    } else if ($disk->exists($tamu->tanda_tangan)) {
+                                        $drawing = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing();
+                                        $drawing->setName('TTD');
+                                        $drawing->setPath($disk->path($tamu->tanda_tangan));
+                                        $drawing->setCoordinates('I' . $rowNum);
+                                        $drawing->setHeight(80);
+                                        $drawing->setOffsetX(10);
+                                        $drawing->setOffsetY(10);
+                                        $drawing->setWorksheet($sheet);
+                                    }
+                                }
+                                $rowNum++;
+                            }
+
+                            // Berikan Border (Garis Kotak) ke seluruh tabel
+                            $styleArray = [
+                                'borders' => [
+                                    'allBorders' => [
+                                        'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                                        'color' => ['argb' => 'FF000000'],
+                                    ],
+                                ],
+                                'alignment' => [
+                                    'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+                                ],
+                            ];
+                            $sheet->getStyle('A4:I' . ($rowNum - 1))->applyFromArray($styleArray);
+                            $sheet->getStyle('A4:A' . ($rowNum - 1))->getAlignment()->setHorizontal('center');
+                            $sheet->getStyle('G4:G' . ($rowNum - 1))->getAlignment()->setHorizontal('center');
+
+                            // Simpan & Download
+                            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+                            $filename = 'Laporan_Buku_Tamu_' . date('Ymd') . '.xlsx';
+                            $tempFile = tempnam(sys_get_temp_dir(), 'excel');
+                            $writer->save($tempFile);
+
+                            return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
                         }
 
                         // ==========================================
-                        // 2. JIKA MEMILIH PDF (Dengan Gambar & Page Number)
+                        // 2. JIKA MEMILIH PDF (TIDAK ADA PERUBAHAN)
                         // ==========================================
                         if ($data['format'] === 'pdf') {
                             $html = '<!DOCTYPE html><html><head>';
-                            // Styling Kertas PDF biar makin rapi dan muat banyak
                             $html .= '<style>
                                         body { font-family: sans-serif; font-size: 11px; margin-bottom: 20px; }
                                         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -205,11 +289,10 @@ class TamusTable
                                       </style>';
                             $html .= '</head><body>';
 
-                            // SCRIPT AJAIB: Inject Page Number otomatis di pojok kanan bawah
                             $html .= '<script type="text/php">
                                         if (isset($pdf)) {
-                                            $x = 740; // Posisi X (Pojok Kanan)
-                                            $y = 570; // Posisi Y (Pojok Bawah)
+                                            $x = 740;
+                                            $y = 570;
                                             $text = "Halaman {PAGE_NUM} dari {PAGE_COUNT}";
                                             $font = $fontMetrics->get_font("sans-serif", "normal");
                                             $size = 9;
@@ -218,56 +301,56 @@ class TamusTable
                                         }
                                       </script>';
 
-                            $html .= '<h2 class="center" style="margin-bottom:0;">Laporan Buku Tamu Digital</h2>';
-                            $html .= '<p class="center" style="margin-top:5px; color:#555;">Periode: ' . $data['dari_tanggal'] . ' s/d ' . $data['sampai_tanggal'] . '</p>';
+                            $html .= '<h2 class="center" style="margin-bottom:0; font-size: 22px;">Laporan Buku Tamu Digital</h2>';
+                            $html .= '<p class="center" style="margin-top:5px; color:#555; font-size: 14px;">Periode: ' . $periodeDari . ' s/d ' . $periodeSampai . '</p>';
 
-                            // Header Tabel PDF dengan tambahan Foto dan TTD
                             $html .= '<table>';
                             $html .= '<thead><tr>
                                         <th width="3%">No</th>
                                         <th width="12%">Waktu</th>
-                                        <th width="15%">Nama Tamu</th>
+                                        <th width="14%">Nama Tamu</th>
                                         <th width="12%">Instansi</th>
-                                        <th width="18%">Keperluan</th>
-                                        <th width="12%">Menemui</th>
+                                        <th width="15%">Keperluan</th>
+                                        <th width="10%">Menemui</th>
                                         <th width="8%">Keluar</th>
-                                        <th width="10%">Foto</th>
-                                        <th width="10%">TTD</th>
+                                        <th width="12%">Foto</th>
+                                        <th width="14%">TTD</th>
                                       </tr></thead><tbody>';
 
                             $no = 1;
                             foreach ($tamus as $tamu) {
-                                // Jurus Base64 untuk Foto agar lolos masuk ke PDF
                                 $fotoImg = '-';
                                 if ($tamu->foto_selfie && $disk->exists($tamu->foto_selfie)) {
                                     $base64 = base64_encode($disk->get($tamu->foto_selfie));
                                     $mime = $disk->mimeType($tamu->foto_selfie);
-                                    $fotoImg = '<img src="data:' . $mime . ';base64,' . $base64 . '" style="width: 45px; height: 45px; object-fit: cover; border-radius:4px;">';
+                                    $fotoImg = '<img src="data:' . $mime . ';base64,' . $base64 . '" style="width: 75px; height: 75px; object-fit: cover; border-radius:6px;">';
                                 }
 
-                                // Jurus Base64 untuk Tanda Tangan
                                 $ttdImg = '-';
-                                if ($tamu->tanda_tangan && $disk->exists($tamu->tanda_tangan)) {
-                                    $base64 = base64_encode($disk->get($tamu->tanda_tangan));
-                                    $mime = $disk->mimeType($tamu->tanda_tangan);
-                                    $ttdImg = '<img src="data:' . $mime . ';base64,' . $base64 . '" style="width: 60px; height: auto;">';
+                                if ($tamu->tanda_tangan) {
+                                    if (str_starts_with($tamu->tanda_tangan, 'data:image')) {
+                                        $ttdImg = '<img src="' . $tamu->tanda_tangan . '" style="width: 90px; height: auto;">';
+                                    } else if ($disk->exists($tamu->tanda_tangan)) {
+                                        $base64 = base64_encode($disk->get($tamu->tanda_tangan));
+                                        $mime = $disk->mimeType($tamu->tanda_tangan);
+                                        $ttdImg = '<img src="data:' . $mime . ';base64,' . $base64 . '" style="width: 90px; height: auto;">';
+                                    }
                                 }
 
                                 $html .= '<tr>';
                                 $html .= '<td class="center">' . $no++ . '</td>';
-                                $html .= '<td>' . $tamu->created_at->format('d M Y, H:i') . '</td>';
+                                $html .= '<td class="center">' . $tamu->created_at->format('d M Y') . '<br>' . $tamu->created_at->format('H:i') . ' WIB</td>';
                                 $html .= '<td>' . $tamu->nama . '</td>';
                                 $html .= '<td>' . ($tamu->asal_instansi ?? '-') . '</td>';
                                 $html .= '<td>' . $tamu->keperluan . '</td>';
                                 $html .= '<td>' . ($tamu->pegawai?->nama ?? '-') . '</td>';
-                                $html .= '<td class="center">' . ($tamu->waktu_keluar ? \Carbon\Carbon::parse($tamu->waktu_keluar)->format('H:i') : '-') . '</td>';
-                                $html .= '<td class="center">' . $fotoImg . '</td>';
-                                $html .= '<td class="center">' . $ttdImg . '</td>';
+                                $html .= '<td class="center">' . ($tamu->waktu_keluar ? \Carbon\Carbon::parse($tamu->waktu_keluar)->format('H:i') . ' WIB' : '-') . '</td>';
+                                $html .= '<td class="center" style="padding: 10px 0;">' . $fotoImg . '</td>';
+                                $html .= '<td class="center" style="padding: 10px 0;">' . $ttdImg . '</td>';
                                 $html .= '</tr>';
                             }
                             $html .= '</tbody></table></body></html>';
 
-                            // Wajib pakai setOptions(['isPhpEnabled' => true]) agar script Page Number berfungsi
                             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)
                                 ->setPaper('a4', 'landscape')
                                 ->setOptions(['isPhpEnabled' => true]);
