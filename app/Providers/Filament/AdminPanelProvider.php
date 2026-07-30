@@ -18,20 +18,64 @@ use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Illuminate\Support\Facades\Schema; // Tambahan untuk cek tabel
+use Illuminate\Support\Facades\Storage; // Tambahan untuk URL file
 
 class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
+        // ==================================================
+        // 1. AMBIL DATA PENGATURAN (Anti-Crash)
+        // ==================================================
+        $pengaturan = null;
+        try {
+            if (Schema::hasTable('pengaturans')) {
+                $pengaturan = \App\Models\Pengaturan::first();
+            }
+        } catch (\Exception $e) {
+        }
+
+        $namaAplikasi = $pengaturan->nama_aplikasi ?? 'Buku Tamu Digital';
+        $warnaUtama = $pengaturan->warna_utama ?? '#f59e0b'; // Default Amber
+
+        $logo = ($pengaturan && $pengaturan->logo_instansi)
+            ? asset(Storage::url($pengaturan->logo_instansi))
+            : null;
+
+        $favicon = ($pengaturan && $pengaturan->favicon)
+            ? asset(Storage::url($pengaturan->favicon))
+            : null;
+
+        $background = ($pengaturan && $pengaturan->gambar_background)
+            ? asset(Storage::url($pengaturan->gambar_background))
+            : null;
+
         return $panel
             ->default()
             ->id('admin')
             ->path('admin')
             ->login()
             ->profile()
+
+            // ==================================================
+            // 2. TERAPKAN DATA BRANDING KE PANEL ADMIN
+            // ==================================================
+            ->brandName($namaAplikasi)
+            ->brandLogo($logo)
+            ->brandLogoHeight('3rem') // Ukuran proporsional logo
+            ->favicon($favicon)
             ->colors([
-                'primary' => Color::Amber,
+                // Mengubah warna bawaan menjadi warna pilihan klien
+                'primary' => Color::hex($warnaUtama),
             ])
+            // Menyuntikkan CSS khusus Halaman Login untuk menampilkan Background
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::HEAD_END,
+                fn(): string => $background ? '<style>.fi-simple-layout { background-image: url("' . $background . '") !important; background-size: cover !important; background-position: center !important; }</style>' : ''
+            )
+            // ==================================================
+
             ->navigationGroups([
                 'Data Master',
                 'Filament Shield',

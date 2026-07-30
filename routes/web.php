@@ -1,7 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Livewire\HalamanDepan;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/', HalamanDepan::class);
