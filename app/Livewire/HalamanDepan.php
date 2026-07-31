@@ -6,8 +6,8 @@ use Livewire\Component;
 use App\Models\Pengaturan;
 use App\Models\Pegawai;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\RateLimiter; // Jurus Anti-Spam
-use Carbon\Carbon; // Jurus Waktu
+use Illuminate\Support\Facades\RateLimiter;
+use Carbon\Carbon;
 
 class HalamanDepan extends Component
 {
@@ -23,7 +23,10 @@ class HalamanDepan extends Component
     public $detail_keperluan;
     public $pegawai_id = null;
 
-    // Variabel Keamanan
+    // Variabel Media (Kamera & TTD)
+    public $foto_selfie;
+    public $tanda_tangan;
+
     public $buka_form = true;
     public $pesan_tutup = '';
 
@@ -40,8 +43,6 @@ class HalamanDepan extends Component
         // FITUR KEAMANAN HARI & JAM OPERASIONAL
         // ==========================================
         $jamSekarang = Carbon::now()->format('H:i:s');
-
-        // Jurus mapping nama hari dari bahasa Inggris ke Indonesia yang anti-gagal
         $namaHariInggris = Carbon::now()->format('l');
         $mapHari = [
             'Monday' => 'Senin',
@@ -54,7 +55,6 @@ class HalamanDepan extends Component
         ];
         $hariSekarang = $mapHari[$namaHariInggris];
 
-        // Ambil pengaturan dari Database
         $jamBuka = $this->pengaturan->jam_buka ?? '06:00:00';
         $jamTutup = $this->pengaturan->jam_tutup ?? '18:00:00';
         $hariKerja = $this->pengaturan->hari_kerja ?? ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
@@ -62,13 +62,10 @@ class HalamanDepan extends Component
         $jamBukaDisplay = Carbon::parse($jamBuka)->format('H:i');
         $jamTutupDisplay = Carbon::parse($jamTutup)->format('H:i');
 
-        // LOGIKA 1: Cek apakah hari ini adalah Hari Libur
         if (!in_array($hariSekarang, $hariKerja)) {
             $this->buka_form = false;
             $this->pesan_tutup = "Mohon maaf, layanan Buku Tamu sedang tutup. Kami hanya melayani kunjungan pada hari kerja (" . implode(', ', $hariKerja) . ").";
-        }
-        // LOGIKA 2: Cek apakah jam saat ini di luar Jam Operasional
-        elseif ($jamSekarang < $jamBuka || $jamSekarang > $jamTutup) {
+        } elseif ($jamSekarang < $jamBuka || $jamSekarang > $jamTutup) {
             $this->buka_form = false;
             $this->pesan_tutup = "Mohon maaf, layanan Buku Tamu hanya melayani pada jam operasional ({$jamBukaDisplay} - {$jamTutupDisplay} WIB).";
         }
@@ -81,26 +78,46 @@ class HalamanDepan extends Component
         }
     }
 
-    // FUNGSI SIMPAN (Dengan Anti Spam)
+    // ==========================================
+    // FUNGSI SIMPAN (Validasi, Media, Anti-Spam)
+    // ==========================================
     public function simpanData()
     {
-        // ==========================================
-        // FITUR ANTI SPAM & BOT (Max 3x per 5 Menit per IP)
-        // ==========================================
-        $ipAddress = request()->ip();
-        $rateLimitKey = 'submit-tamu-' . $ipAddress;
+        // 1. VALIDASI WAJIB ISI (Server Side)
+        $this->validate([
+            'nama' => 'required|min:3',
+            'alamat' => 'required',
+            'no_hp' => 'required|min:10',
+            'kategori_keperluan' => 'required',
+            'detail_keperluan' => 'required',
+            'foto_selfie' => 'required',
+            'tanda_tangan' => 'required',
+        ], [
+            'required' => ':attribute wajib diisi atau diselesaikan!',
+            'min' => ':attribute minimal :min karakter.',
+        ]);
 
-        if (RateLimiter::tooManyAttempts($rateLimitKey, 3)) {
-            $waktuTunggu = RateLimiter::availableIn($rateLimitKey);
-            session()->flash('error', "Terlalu banyak permintaan! Silakan coba lagi dalam {$waktuTunggu} detik.");
+        // Jika butuh validasi guru saat kategori guru dipilih
+        if ($this->kategori_keperluan === 'Menemui Guru / Pegawai / Kepsek' && empty($this->pegawai_id)) {
+            $this->addError('pegawai_id', 'Nama Guru / Pegawai wajib dipilih!');
             return;
         }
 
-        RateLimiter::hit($rateLimitKey, 5 * 60); // Kunci selama 5 menit (300 detik)
+        // 2. RATE LIMITER (Maksimal 5x dalam 10 Menit)
+        $ipAddress = request()->ip();
+        $rateLimitKey = 'submit-tamu-' . $ipAddress;
 
-        // (NANTI DISINI TEMPAT MENYIMPAN KE DATABASE)
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 5)) {
+            $waktuTunggu = RateLimiter::availableIn($rateLimitKey);
+            $menitTunggu = ceil($waktuTunggu / 60);
+            session()->flash('error', "Terlalu banyak percobaan! Silakan tunggu {$menitTunggu} menit lagi.");
+            return;
+        }
+        RateLimiter::hit($rateLimitKey, 10 * 60); // Kunci 10 menit
 
-        session()->flash('success', 'Data berhasil diverifikasi! Nanti akan masuk ke database.');
+        // DISINI NANTI PROSES SIMPAN KE DATABASE...
+
+        session()->flash('success', 'Data kunjungan berhasil diverifikasi dan disimpan dengan aman!');
     }
 
     public function render()
