@@ -11,7 +11,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Select; // WAJIB untuk pop-up pilih pegawai
+use Filament\Forms\Components\Select;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ToggleColumn;
@@ -20,8 +20,8 @@ use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\HtmlString; // WAJIB untuk merender foto asli
-use Illuminate\Support\Facades\Storage; // WAJIB untuk mengambil URL foto
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Facades\Storage;
 
 class TamusTable
 {
@@ -30,7 +30,7 @@ class TamusTable
         return $table
             ->poll('10s')
             ->columns([
-                // 1. REVISI: Foto Selfie kebal URL patah dengan jurus Base64
+                // 1. REVISI: Foto Selfie (Bisa baca data baru & data base64 lama)
                 ImageColumn::make('foto_selfie')
                     ->label('Foto')
                     ->circular()
@@ -39,14 +39,15 @@ class TamusTable
                     ->action(
                         Action::make('view_foto')
                             ->modalHeading('Foto Selfie Tamu')
-                            ->modalSubmitAction(false) // Hilangkan tombol "Submit"
+                            ->modalSubmitAction(false)
                             ->modalCancelAction(fn($action) => $action->label('Tutup'))
                             ->modalContent(function (Tamu $record) {
-                                // Cari tahu brankas disk apa yang dipakai server
                                 $disk = Storage::disk(config('filament.default_filesystem_disk', 'public'));
 
-                                // Ambil file fisik langsung, ubah jadi teks gambar murni (Base64)
-                                if ($record->foto_selfie && $disk->exists($record->foto_selfie)) {
+                                // Deteksi pintar: Apakah data lama (Base64) atau data baru (File Fisik)
+                                if ($record->foto_selfie && str_starts_with($record->foto_selfie, 'data:image')) {
+                                    $url = $record->foto_selfie;
+                                } elseif ($record->foto_selfie && $disk->exists($record->foto_selfie)) {
                                     $mime = $disk->mimeType($record->foto_selfie);
                                     $base64 = base64_encode($disk->get($record->foto_selfie));
                                     $url = 'data:' . $mime . ';base64,' . $base64;
@@ -54,11 +55,36 @@ class TamusTable
                                     $url = url('/images/default-avatar.png');
                                 }
 
-                                // Hapus w-full dan tambahkan width: auto di style
-                                // Tambahkan object-fit: contain; di dalam style
                                 return new HtmlString('<img src="' . $url . '" style="max-height: 60vh; max-width: 100%; object-fit: contain;" class="mx-auto rounded-xl shadow-md border border-gray-300 dark:border-gray-700" />');
                             })
                     ),
+
+                // 2. FITUR BARU: Kolom Tanda Tangan di Tabel Admin
+                ImageColumn::make('tanda_tangan')
+                    ->label('TTD')
+                    ->tooltip('Klik untuk lihat TTD')
+                    ->action(
+                        Action::make('view_ttd')
+                            ->modalHeading('Tanda Tangan Digital')
+                            ->modalSubmitAction(false)
+                            ->modalCancelAction(fn($action) => $action->label('Tutup'))
+                            ->modalContent(function (Tamu $record) {
+                                $disk = Storage::disk(config('filament.default_filesystem_disk', 'public'));
+
+                                if ($record->tanda_tangan && str_starts_with($record->tanda_tangan, 'data:image')) {
+                                    $url = $record->tanda_tangan;
+                                } elseif ($record->tanda_tangan && $disk->exists($record->tanda_tangan)) {
+                                    $mime = $disk->mimeType($record->tanda_tangan);
+                                    $base64 = base64_encode($disk->get($record->tanda_tangan));
+                                    $url = 'data:' . $mime . ';base64,' . $base64;
+                                } else {
+                                    $url = ''; // Kosongkan jika tidak ada
+                                }
+
+                                return new HtmlString('<div class="bg-white p-4 rounded-xl shadow-inner border border-gray-200"><img src="' . $url . '" style="max-height: 40vh; max-width: 100%; object-fit: contain;" class="mx-auto" /></div>');
+                            })
+                    ),
+
                 TextColumn::make('created_at')
                     ->label('Waktu Datang')
                     ->dateTime('d M Y, H:i')
@@ -80,7 +106,7 @@ class TamusTable
 
                 TextColumn::make('pegawai.nama')
                     ->label('Menemui')
-                    ->placeholder('Belum ditentukan') // Tulisan yang muncul saat kosong
+                    ->placeholder('Belum ditentukan')
                     ->searchable(),
 
                 ToggleColumn::make('is_lsm')
@@ -116,7 +142,6 @@ class TamusTable
                     })
             ])
             ->headerActions([
-                // TOMBOL BARU: EXPORT DATA
                 Action::make('export_laporan')
                     ->label('Export Data')
                     ->icon('heroicon-o-document-arrow-down')
@@ -154,14 +179,10 @@ class TamusTable
                         $periodeDari = \Carbon\Carbon::parse($data['dari_tanggal'])->translatedFormat('d M Y');
                         $periodeSampai = \Carbon\Carbon::parse($data['sampai_tanggal'])->translatedFormat('d M Y');
 
-                        // ==========================================
-                        // 1. JIKA MEMILIH EXCEL (.xlsx ASLI DENGAN GAMBAR)
-                        // ==========================================
                         if ($data['format'] === 'excel') {
                             $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
                             $sheet = $spreadsheet->getActiveSheet();
 
-                            // Set Judul
                             $sheet->mergeCells('A1:I1');
                             $sheet->setCellValue('A1', 'Laporan Buku Tamu Digital');
                             $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(18);
@@ -172,14 +193,12 @@ class TamusTable
                             $sheet->getStyle('A2')->getFont()->setSize(12);
                             $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
 
-                            // Header Tabel
                             $headers = ['No', 'Waktu Datang', 'Nama Tamu', 'Asal Instansi', 'Keperluan', 'Menemui', 'Jam Keluar', 'Foto Selfie', 'Tanda Tangan'];
                             $sheet->fromArray($headers, null, 'A4');
                             $sheet->getStyle('A4:I4')->getFont()->setBold(true);
                             $sheet->getStyle('A4:I4')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
                             $sheet->getStyle('A4:I4')->getAlignment()->setHorizontal('center');
 
-                            // Lebar Kolom
                             $sheet->getColumnDimension('B')->setWidth(18);
                             $sheet->getColumnDimension('C')->setWidth(20);
                             $sheet->getColumnDimension('D')->setWidth(20);
@@ -193,12 +212,11 @@ class TamusTable
                             $no = 1;
 
                             foreach ($tamus as $tamu) {
-                                // Lebarkan tinggi baris agar gambar muat
                                 $sheet->getRowDimension($rowNum)->setRowHeight(80);
 
                                 $sheet->setCellValue('A' . $rowNum, $no++);
                                 $sheet->setCellValue('B' . $rowNum, $tamu->created_at->format('d M Y') . "\n" . $tamu->created_at->format('H:i') . ' WIB');
-                                $sheet->getStyle('B' . $rowNum)->getAlignment()->setWrapText(true); // Agar jam bisa turun ke bawah
+                                $sheet->getStyle('B' . $rowNum)->getAlignment()->setWrapText(true);
 
                                 $sheet->setCellValue('C' . $rowNum, $tamu->nama);
                                 $sheet->setCellValue('D' . $rowNum, $tamu->asal_instansi ?? '-');
@@ -206,7 +224,6 @@ class TamusTable
                                 $sheet->setCellValue('F' . $rowNum, $tamu->pegawai?->nama ?? '-');
                                 $sheet->setCellValue('G' . $rowNum, $tamu->waktu_keluar ? \Carbon\Carbon::parse($tamu->waktu_keluar)->format('H:i') . ' WIB' : '-');
 
-                                // MASUKKAN FOTO SELFIE FISIK KE DALAM EXCEL
                                 if ($tamu->foto_selfie && $disk->exists($tamu->foto_selfie)) {
                                     $drawing = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing();
                                     $drawing->setName('Foto');
@@ -218,10 +235,8 @@ class TamusTable
                                     $drawing->setWorksheet($sheet);
                                 }
 
-                                // MASUKKAN TANDA TANGAN KE DALAM EXCEL
                                 if ($tamu->tanda_tangan) {
                                     if (str_starts_with($tamu->tanda_tangan, 'data:image')) {
-                                        // Ubah Base64 menjadi gambar memori khusus untuk Excel
                                         $base64data = substr($tamu->tanda_tangan, strpos($tamu->tanda_tangan, ',') + 1);
                                         $image = imagecreatefromstring(base64_decode($base64data));
                                         if ($image !== false) {
@@ -250,7 +265,6 @@ class TamusTable
                                 $rowNum++;
                             }
 
-                            // Berikan Border (Garis Kotak) ke seluruh tabel
                             $styleArray = [
                                 'borders' => [
                                     'allBorders' => [
@@ -266,7 +280,6 @@ class TamusTable
                             $sheet->getStyle('A4:A' . ($rowNum - 1))->getAlignment()->setHorizontal('center');
                             $sheet->getStyle('G4:G' . ($rowNum - 1))->getAlignment()->setHorizontal('center');
 
-                            // Simpan & Download
                             $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
                             $filename = 'Laporan_Buku_Tamu_' . date('Ymd') . '.xlsx';
                             $tempFile = tempnam(sys_get_temp_dir(), 'excel');
@@ -275,9 +288,6 @@ class TamusTable
                             return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
                         }
 
-                        // ==========================================
-                        // 2. JIKA MEMILIH PDF (TIDAK ADA PERUBAHAN)
-                        // ==========================================
                         if ($data['format'] === 'pdf') {
                             $html = '<!DOCTYPE html><html><head>';
                             $html .= '<style>
@@ -358,20 +368,17 @@ class TamusTable
                             return response()->streamDownload(fn() => print($pdf->output()), 'Laporan_Buku_Tamu_' . date('Ymd') . '.pdf');
                         }
                     }),
-                // Tombol aslinya biarkan tetap di sini
                 CreateAction::make()
                     ->label('Tambah Tamu')
                     ->icon('heroicon-o-plus-circle')
                     ->color('primary'),
             ])
             ->recordActions([
-                // 2. REVISI: Tombol Sakti "Temui Pegawai"
                 Action::make('temui_pegawai')
                     ->hiddenLabel()
                     ->tooltip('Tentukan Pegawai yang Ditemui')
                     ->icon('heroicon-m-user-plus')
                     ->color('primary')
-                    // Keajaibannya: Tombol ini HANYA MUNCUL kalau pegawai_id kosong!
                     ->visible(fn(Tamu $record): bool => blank($record->pegawai_id))
                     ->modalHeading('Pilih Guru / Pegawai')
                     ->form([
@@ -388,13 +395,11 @@ class TamusTable
                             ->required(),
                     ])
                     ->action(function (Tamu $record, array $data) {
-                        // Proses Auto-Update data (tanpa perlu ke halaman Edit)
                         $record->update([
                             'pegawai_id' => $data['pegawai_id'],
                             'kategori_keperluan' => 'Menemui Guru / Pegawai / Kepsek',
                         ]);
 
-                        // Munculkan notif sukses
                         \Filament\Notifications\Notification::make()
                             ->title('Berhasil Disimpan!')
                             ->body('Kategori otomatis berubah menjadi Menemui Pegawai.')
@@ -408,11 +413,8 @@ class TamusTable
                     ->icon('heroicon-m-chat-bubble-left-ellipsis')
                     ->color('success')
                     ->url(function (Tamu $record) {
-                        // Merakit kata-kata dinamis
                         $namaPegawai = $record->pegawai->nama ?? 'Bapak/Ibu';
                         $instansi = $record->asal_instansi ? " dari " . $record->asal_instansi : "";
-
-                        // Teks sesuai format baru
                         $pesan = "Assalamualaikum Bapak/Ibu {$namaPegawai} ada tamu atas nama {$record->nama}{$instansi} menunggu di Front Office. Keperluan: {$record->keperluan}. Mohon Ketersediaannya menemui nggeh Bapak/Ibu. Terima kasih.";
 
                         return "https://wa.me/" . ($record->pegawai->no_hp ?? '') . "?text=" . urlencode($pesan);
