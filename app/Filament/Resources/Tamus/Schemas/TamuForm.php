@@ -93,6 +93,7 @@ class TamuForm
                         FileUpload::make('foto_selfie')
                             ->label('Foto Selfie Tamu')
                             ->image()
+                            ->disk('public')
                             ->directory('foto-tamu')
                             ->imageResizeTargetWidth(1024)
                             ->imageResizeTargetHeight(1024)

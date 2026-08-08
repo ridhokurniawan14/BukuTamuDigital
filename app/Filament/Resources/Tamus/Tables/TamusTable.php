@@ -30,38 +30,30 @@ class TamusTable
         return $table
             ->poll('10s')
             ->columns([
-                // 1. REVISI: Foto Selfie (Bisa baca data baru & data base64 lama)
                 ImageColumn::make('foto_selfie')
                     ->label('Foto')
                     ->circular()
+                    ->getStateUsing(fn(Tamu $record) => static::resolveImageState($record->foto_selfie))
                     ->tooltip('Klik untuk lihat foto asli')
-                    ->defaultImageUrl(url('/images/default-avatar.png'))
                     ->action(
                         Action::make('view_foto')
                             ->modalHeading('Foto Selfie Tamu')
                             ->modalSubmitAction(false)
                             ->modalCancelAction(fn($action) => $action->label('Tutup'))
                             ->modalContent(function (Tamu $record) {
-                                $disk = Storage::disk(config('filament.default_filesystem_disk', 'public'));
+                                $url = static::resolveImageState($record->foto_selfie);
 
-                                // Deteksi pintar: Apakah data lama (Base64) atau data baru (File Fisik)
-                                if ($record->foto_selfie && str_starts_with($record->foto_selfie, 'data:image')) {
-                                    $url = $record->foto_selfie;
-                                } elseif ($record->foto_selfie && $disk->exists($record->foto_selfie)) {
-                                    $mime = $disk->mimeType($record->foto_selfie);
-                                    $base64 = base64_encode($disk->get($record->foto_selfie));
-                                    $url = 'data:' . $mime . ';base64,' . $base64;
-                                } else {
-                                    $url = url('/images/default-avatar.png');
+                                if (blank($url)) {
+                                    return new HtmlString('<div class="text-center p-8 font-bold text-gray-400">Tidak ada foto valid.</div>');
                                 }
 
                                 return new HtmlString('<img src="' . $url . '" style="max-height: 60vh; max-width: 100%; object-fit: contain;" class="mx-auto rounded-xl shadow-md border border-gray-300 dark:border-gray-700" />');
                             })
                     ),
 
-                // 2. FITUR BARU: Kolom Tanda Tangan di Tabel Admin
                 ImageColumn::make('tanda_tangan')
                     ->label('TTD')
+                    ->getStateUsing(fn(Tamu $record) => static::resolveImageState($record->tanda_tangan))
                     ->tooltip('Klik untuk lihat TTD')
                     ->action(
                         Action::make('view_ttd')
@@ -69,22 +61,15 @@ class TamusTable
                             ->modalSubmitAction(false)
                             ->modalCancelAction(fn($action) => $action->label('Tutup'))
                             ->modalContent(function (Tamu $record) {
-                                $disk = Storage::disk(config('filament.default_filesystem_disk', 'public'));
+                                $url = static::resolveImageState($record->tanda_tangan);
 
-                                if ($record->tanda_tangan && str_starts_with($record->tanda_tangan, 'data:image')) {
-                                    $url = $record->tanda_tangan;
-                                } elseif ($record->tanda_tangan && $disk->exists($record->tanda_tangan)) {
-                                    $mime = $disk->mimeType($record->tanda_tangan);
-                                    $base64 = base64_encode($disk->get($record->tanda_tangan));
-                                    $url = 'data:' . $mime . ';base64,' . $base64;
-                                } else {
-                                    $url = ''; // Kosongkan jika tidak ada
+                                if (blank($url)) {
+                                    return new HtmlString('<div class="text-center p-8 font-bold text-gray-400">Tidak ada TTD valid.</div>');
                                 }
 
                                 return new HtmlString('<div class="bg-white p-4 rounded-xl shadow-inner border border-gray-200"><img src="' . $url . '" style="max-height: 40vh; max-width: 100%; object-fit: contain;" class="mx-auto" /></div>');
                             })
                     ),
-
                 TextColumn::make('created_at')
                     ->label('Waktu Datang')
                     ->dateTime('d M Y, H:i')
@@ -454,5 +439,48 @@ class TamusTable
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+    protected static function resolveImageState(?string $value): ?string
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        if (str_starts_with($value, 'data:image')) {
+            return $value;
+        }
+
+        // Cek disk 'public' dulu (ini yang benar & dipakai form publik)
+        $publicDisk = Storage::disk('public');
+        if ($publicDisk->exists($value)) {
+            return static::toDataUri($publicDisk, $value);
+        }
+
+        // Fallback: data lama yang sempat ke-save di disk 'local' (bug FileUpload sebelumnya)
+        $localDisk = Storage::disk('local');
+        if ($localDisk->exists($value)) {
+            return static::toDataUri($localDisk, $value);
+        }
+
+        // Fallback terakhir: basename doang tanpa prefix folder
+        $basename = basename($value);
+        foreach ([$publicDisk, $localDisk] as $disk) {
+            foreach (['foto-tamu', 'tanda-tangan'] as $folder) {
+                $candidate = $folder . '/' . $basename;
+                if ($disk->exists($candidate)) {
+                    return static::toDataUri($disk, $candidate);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    protected static function toDataUri($disk, string $path): string
+    {
+        $mime = $disk->mimeType($path);
+        $base64 = base64_encode($disk->get($path));
+
+        return 'data:' . $mime . ';base64,' . $base64;
     }
 }

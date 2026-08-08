@@ -115,7 +115,6 @@
         $warna = $pengaturan->warna_utama ?? '#f59e0b';
         echo "<style>:root { --warna-utama: {$warna}; --warna-rgb: 245, 158, 11; }</style>";
     @endphp
-
     <div
         class="min-h-screen relative flex flex-col items-center justify-start lg:justify-center p-0 lg:p-6 animated-gradient-bg">
         @if ($bgUrl)
@@ -123,12 +122,15 @@
                 style="background-image: url('{{ $bgUrl }}');"></div>
         @endif
 
-        <div class="w-full relative z-10 pt-10 pb-20 px-6 flex flex-col items-center text-center lg:hidden">
+        <div class="w-full relative z-10 pt-8 pb-16 px-6 flex flex-col items-center text-center lg:hidden">
             @if ($logoUrl)
                 <img src="{{ $logoUrl }}" alt="Logo"
                     class="w-20 h-20 object-contain bg-white/10 backdrop-blur-md rounded-full p-2 mb-4 shadow-lg border border-white/20">
             @endif
             <h1 class="text-2xl font-bold text-white tracking-tight">{{ $pengaturan->nama_aplikasi ?? 'Buku Tamu' }}</h1>
+            <p class="text-sm text-white/80 mt-2 max-w-xs leading-relaxed">
+                Silakan isi data kunjungan Anda dengan lengkap mengikuti 3 langkah di bawah ini.
+            </p>
         </div>
 
         <div class="relative z-20 w-full max-w-5xl -mt-10 lg:mt-0 px-4 lg:px-0 mb-10">
@@ -152,11 +154,18 @@
                 </div>
 
                 <!-- KANAN -->
-                <div class="w-full lg:w-8/12 p-6 sm:p-10 lg:p-12 flex flex-col min-h-[500px]">
+                <div class="w-full lg:w-8/12 p-6 sm:p-10 lg:p-12 flex flex-col {{ $buka_form ? 'min-h-[500px]' : '' }}">
                     @if (!$buka_form)
-                        <div class="flex-grow flex flex-col items-center justify-center text-center p-8">
-                            <h3 class="text-2xl font-bold text-red-600 mb-2">Layanan Ditutup</h3>
-                            <p class="text-gray-500 font-medium">{{ $pesan_tutup }}</p>
+                        <div class="flex flex-col items-center text-center py-6">
+                            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                                <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold text-red-600 mb-2">Layanan Ditutup</h3>
+                            <p class="text-gray-500 text-sm font-medium max-w-sm">{{ $pesan_tutup }}</p>
                         </div>
                     @elseif($is_success)
                         <!-- ============================================== -->
@@ -187,16 +196,6 @@
                                         </path>
                                     </svg>
                                     Isi Data Kembali
-                                </button>
-
-                                <!-- Tombol Tutup Halaman -->
-                                <button type="button" onclick="window.close()"
-                                    class="flex items-center justify-center px-6 py-3 rounded-xl font-bold text-gray-700 bg-gray-200 hover:bg-gray-300 shadow-md transition-transform transform active:scale-95">
-                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M6 18L18 6M6 6l12 12"></path>
-                                    </svg>
-                                    Tutup Halaman
                                 </button>
                             </div>
                         </div>
@@ -252,7 +251,10 @@
                             @endif
 
                             <form wire:submit.prevent="simpanData" class="flex-grow flex flex-col justify-between mt-6">
-
+                                <div style="position:absolute; left:-9999px; top:-9999px;" aria-hidden="true"
+                                    tabindex="-1">
+                                    <input type="text" wire:model="website" autocomplete="off" tabindex="-1">
+                                </div>
                                 <!-- STEP 1 -->
                                 <div id="step-1" x-show="step === 1" class="step-container space-y-5">
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -340,8 +342,11 @@
                                             <label class="form-label text-center mb-2">Verifikasi Wajah AI <span
                                                     class="text-red-500">*</span></label>
                                             <div class="camera-container" wire:ignore
-                                                :class="{ 'face-detected': isFaceDetected && !isCaptured, 'border-red-500': !
-                                                        isFaceDetected && !isCaptured }">
+                                                :class="{
+                                                    'face-detected': isFaceDetected && !isCaptured,
+                                                    'border-red-500': !
+                                                        isFaceDetected && !isCaptured
+                                                }">
                                                 <video x-ref="video" autoplay muted playsinline class="camera-video"
                                                     x-show="!isCaptured"></video>
                                                 <canvas x-ref="canvas" style="display:none;"></canvas>
@@ -364,7 +369,8 @@
                                                 <div x-show="!isCaptured && !isFaceDetected && !isLoading"
                                                     class="absolute inset-0 bg-black/30 flex items-center justify-center text-white text-xs font-bold text-center">
                                                     <span class="bg-red-500 px-3 py-1 rounded-full">Wajah Tidak
-                                                        Terdeteksi</span></div>
+                                                        Terdeteksi</span>
+                                                </div>
                                                 <div x-show="!isCaptured && isFaceDetected"
                                                     class="absolute bottom-4 left-0 w-full flex justify-center"><span
                                                         class="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">Wajah

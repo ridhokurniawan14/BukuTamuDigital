@@ -129,7 +129,8 @@ class PengaturanForm
                                         'Minggu' => 'Minggu',
                                     ])
                                     ->default(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'])
-                                    ->columns(4) // Biar rapi berjajar 4 kolom ke samping
+                                    ->columns(4)
+                                    ->bulkToggleable()
                                     ->columnSpanFull()
                                     ->required(),
                             ]),
